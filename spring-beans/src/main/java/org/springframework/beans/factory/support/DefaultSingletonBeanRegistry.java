@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.PropertyValues;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.BeanCreationNotAllowedException;
 import org.springframework.beans.factory.BeanCurrentlyInCreationException;
@@ -70,22 +71,41 @@ import org.springframework.util.StringUtils;
  */
 public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements SingletonBeanRegistry {
 
+	/**
+	 * 缓存单例对象
+	 */
 	/** Cache of singleton objects: bean name --> bean instance */
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
+	/**
+	 * 缓存实例的工厂对象，通过调用geObject()获取对象实例。
+	 */
 	/** Cache of singleton factories: bean name --> ObjectFactory */
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
+	/**
+	 * 缓存bean名称和创建bean之间的关系，与上面的singletonFactories不同的是，当一个单例对象放到这里后，
+	 * 那么当这个bean还在创建的时候就能被其他bean获取到，目的是用来检测循环引用。
+	 */
 	/** Cache of early singleton objects: bean name --> bean instance */
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
+	/**
+	 * 存放单例对象的名称
+	 */
 	/** Set of registered singletons, containing the bean names in registration order */
 	private final Set<String> registeredSingletons = new LinkedHashSet<>(256);
 
+	/**
+	 * 存放当前正在创建的单例名称
+	 */
 	/** Names of beans that are currently in creation */
 	private final Set<String> singletonsCurrentlyInCreation =
 			Collections.newSetFromMap(new ConcurrentHashMap<>(16));
 
+	/**
+	 * 从当前创建检查中排除的bean的名称
+	 */
 	/** Names of beans currently excluded from in creation checks */
 	private final Set<String> inCreationCheckExclusions =
 			Collections.newSetFromMap(new ConcurrentHashMap<>(16));
@@ -94,18 +114,32 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	@Nullable
 	private Set<Exception> suppressedExceptions;
 
+	/**
+	 * 标记当前是否在释放单例对象，默认为false。当调用{@link DefaultSingletonBeanRegistry#destroySingletons()}方法是修改为true
+	 */
 	/** Flag that indicates whether we're currently within destroySingletons */
 	private boolean singletonsCurrentlyInDestruction = false;
 
+	/**
+	 * 存放需要释放的单例对象
+	 */
 	/** Disposable bean instances: bean name --> disposable instance */
 	private final Map<String, Object> disposableBeans = new LinkedHashMap<>();
 
 	/** Map between containing bean names: bean name --> Set of bean names that the bean contains */
 	private final Map<String, Set<String>> containedBeanMap = new ConcurrentHashMap<>(16);
 
+	/**
+	 * 存放bean实例被哪些bean所依赖了,可以理解为哪些Bean依赖了我.
+	 * key=bean名称，value=被哪些bean依赖
+	 */
 	/** Map between dependent bean names: bean name --> Set of dependent bean names */
 	private final Map<String, Set<String>> dependentBeanMap = new ConcurrentHashMap<>(64);
 
+	/**
+	 * 存放bean实例需要依赖的bean集合，可以理解为我依赖了哪些Bean.
+	 * key=bean名称，value=需要依赖的bean名称
+	 */
 	/** Map between depending bean names: bean name --> Set of bean names for the bean's dependencies */
 	private final Map<String, Set<String>> dependenciesForBeanMap = new ConcurrentHashMap<>(64);
 
@@ -202,9 +236,11 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(beanName, "Bean name must not be null");
 		synchronized (this.singletonObjects) {
+			//从单例缓存中获取对象
 			Object singletonObject = this.singletonObjects.get(beanName);
 			if (singletonObject == null) {
 				if (this.singletonsCurrentlyInDestruction) {
+					//如果在销毁单例bean的时候，仍在创建单例对象则抛异常。
 					throw new BeanCreationNotAllowedException(beanName,
 							"Singleton bean creation not allowed while singletons of this factory are in destruction " +
 							"(Do not request a bean from a BeanFactory in a destroy method implementation!)");
@@ -212,6 +248,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 				if (logger.isDebugEnabled()) {
 					logger.debug("Creating shared instance of singleton bean '" + beanName + "'");
 				}
+				//单例创建创建之前处理，将bean名称放入singletonsCurrentlyInCreation中
 				beforeSingletonCreation(beanName);
 				boolean newSingleton = false;
 				boolean recordSuppressedExceptions = (this.suppressedExceptions == null);
@@ -219,6 +256,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					this.suppressedExceptions = new LinkedHashSet<>();
 				}
 				try {
+					//调用getObject()获取实例对象，内部调用的是createBean(beanName, mbd, args);
 					singletonObject = singletonFactory.getObject();
 					newSingleton = true;
 				}
@@ -242,8 +280,10 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					if (recordSuppressedExceptions) {
 						this.suppressedExceptions = null;
 					}
+					//bean创建之后处理，将bean名称从singletonsCurrentlyInCreation中移除
 					afterSingletonCreation(beanName);
 				}
+				//将单例对象放入缓存中
 				if (newSingleton) {
 					addSingleton(beanName, singletonObject);
 				}
@@ -389,6 +429,8 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	}
 
 	/**
+	 * 注册依赖关系，在自动装配的情况可以根据依赖关系解决依赖的属性值。
+	 * {@link org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.AutowiredFieldElement#inject(Object, String, PropertyValues)}
 	 * Register a dependent bean for the given bean,
 	 * to be destroyed before the given bean is destroyed.
 	 * @param beanName the name of the bean
@@ -397,6 +439,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	public void registerDependentBean(String beanName, String dependentBeanName) {
 		String canonicalName = canonicalName(beanName);
 
+		//记录bean实例被哪些bean所依赖了.
 		synchronized (this.dependentBeanMap) {
 			Set<String> dependentBeans =
 					this.dependentBeanMap.computeIfAbsent(canonicalName, k -> new LinkedHashSet<>(8));
@@ -405,6 +448,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 			}
 		}
 
+		//记录bean实例需要依赖哪些bean.
 		synchronized (this.dependenciesForBeanMap) {
 			Set<String> dependenciesForBean =
 					this.dependenciesForBeanMap.computeIfAbsent(dependentBeanName, k -> new LinkedHashSet<>(8));

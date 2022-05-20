@@ -169,10 +169,17 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	/** List of names of manually registered singletons, in registration order */
 	private volatile Set<String> manualSingletonNames = new LinkedHashSet<>(16);
 
+	/**
+	 * 冻结的bean定义名称
+	 */
 	/** Cached array of bean definition names in case of frozen configuration */
 	@Nullable
 	private volatile String[] frozenBeanDefinitionNames;
 
+	/**
+	 * 是否可以为所有bean缓存 bean 定义元数据，
+	 * {@link org.springframework.context.support.AbstractApplicationContext#finishBeanFactoryInitialization(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 */
 	/** Whether bean definition metadata may be cached for all beans */
 	private volatile boolean configurationFrozen = false;
 
@@ -834,8 +841,10 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 		}
 		else {
 			if (hasBeanCreationStarted()) {
+				//对存放bean定义的map对象进行加锁，同一时间只能被一个线程访问到。
 				// Cannot modify startup-time collection elements anymore (for stable iteration)
 				synchronized (this.beanDefinitionMap) {
+					//将bean以及bean定义放入map中
 					this.beanDefinitionMap.put(beanName, beanDefinition);
 					List<String> updatedDefinitions = new ArrayList<>(this.beanDefinitionNames.size() + 1);
 					updatedDefinitions.addAll(this.beanDefinitionNames);

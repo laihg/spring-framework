@@ -19,6 +19,7 @@ package org.springframework.beans.factory.config;
 import org.springframework.lang.Nullable;
 
 /**
+ * 注册单例实例对象
  * Interface that defines a registry for shared bean instances.
  * Can be implemented by {@link org.springframework.beans.factory.BeanFactory}
  * implementations in order to expose their singleton management facility
@@ -35,6 +36,8 @@ import org.springframework.lang.Nullable;
 public interface SingletonBeanRegistry {
 
 	/**
+	 * 根据bean名称和bean实例注册为单例对象。该单例对象是完全已经初始化完的，只放入缓存Map中，
+	 * 不做任何处理。
 	 * Register the given existing object as singleton in the bean registry,
 	 * under the given bean name.
 	 * <p>The given instance is supposed to be fully initialized; the registry
@@ -58,6 +61,7 @@ public interface SingletonBeanRegistry {
 	void registerSingleton(String beanName, Object singletonObject);
 
 	/**
+	 * 根据bean名称返回单例对象
 	 * Return the (raw) singleton object registered under the given name.
 	 * <p>Only checks already instantiated singletons; does not return an Object
 	 * for singleton bean definitions which have not been instantiated yet.

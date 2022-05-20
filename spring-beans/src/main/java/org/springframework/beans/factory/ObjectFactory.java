@@ -19,6 +19,7 @@ package org.springframework.beans.factory;
 import org.springframework.beans.BeansException;
 
 /**
+ * 定义一个工厂类，在调用的时候返回单例或多例对象。
  * Defines a factory which can return an Object instance
  * (possibly shared or independent) when invoked.
  *
